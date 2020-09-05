@@ -93,8 +93,8 @@
     <ResourceCompile Include="Win32Dx11.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="small.ico" />
-    <Image Include="Win32Dx11.ico" />
+    <Image Include="icon-small.ico" />
+    <Image Include="icon-large.ico" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shader-pixel.hlsl">
