@@ -58,7 +58,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                 DispatchMessage(&msg);
             }
         } else {
-            // TODO: Update/Render/Present
+            d3d11Render.Present();
         }
     }
 

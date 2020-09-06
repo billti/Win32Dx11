@@ -1,6 +1,7 @@
 #include "D3D11Render.h"
 
 #include <iostream>
+#include <chrono>
 
 // C6385: Invalid warning about the readable size
 #pragma warning(disable : 6385)
@@ -11,6 +12,7 @@ bool D3D11Render::Initialize(HWND hWnd)
 {
     // Example at https://docs.microsoft.com/en-us/windows/win32/direct3dgetstarted/work-with-dxgi
     HRESULT hr = S_OK;
+    this->hWnd = hWnd;
 
     D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_1 };
     D3D_FEATURE_LEVEL featureLevelCreated;
@@ -81,7 +83,6 @@ bool D3D11Render::Initialize(HWND hWnd)
     hr = d3d11Device->CreateRenderTargetView(d3d11Resource.Get(), nullptr, &d3d11RenderTargetView);
     CheckHR(hr);
 
-    this->hWnd = hWnd;
     isInitialized = true;
     return isInitialized;
 }
@@ -111,7 +112,7 @@ void D3D11Render::Present()
         const UINT offsets = 0;
 
         // Note: By default vertices must be in a clockwise direction, else will get culled
-        const Vertex triangle[] = { {0.0f, 0.5f}, {0.5f, -0.5f}, {-0.5f, -0.5f} };
+        const Vertex triangle[] = { {0.0f, 0.3f}, {0.5f, -0.5f}, {-0.5f, -0.5f} };
 
         // Create the vertex buffer
         desc.ByteWidth = sizeof(triangle);
@@ -159,9 +160,48 @@ void D3D11Render::Present()
         hr = d3d11Device->CreateInputLayout(elementDesc, 1, d3dBlob->GetBufferPointer(), d3dBlob->GetBufferSize(), &d3d11InputLayout);
         CheckHR(hr);
         d3d11DeviceContext->IASetInputLayout(d3d11InputLayout.Get());
-
-        d3d11DeviceContext->OMSetRenderTargets(1, d3d11RenderTargetView.GetAddressOf(), nullptr);
         d3d11DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+        // Create buffer for rotation transform
+        struct ConstantBuffer {
+            struct {
+                float element[4][4];
+            } Transform;
+        };
+
+        double angle = 20;
+
+        auto now_duration = std::chrono::steady_clock::now().time_since_epoch();
+        auto now_milli = std::chrono::duration_cast<std::chrono::milliseconds>(now_duration);
+        angle = (double)now_milli.count() / 1000;
+        
+        float aspect_ratio = (float)this->height / (float)this->width;
+        const ConstantBuffer cb = {
+            {
+                (float)std::cos(angle)  * aspect_ratio, (float)std::sin(angle), 0.0f, 0.0f,
+                (float)-std::sin(angle) * aspect_ratio, (float)std::cos(angle), 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
+            }
+        };
+
+        ComPtr<ID3D11Buffer> d3d11ConstantBuffer;
+        desc.ByteWidth = sizeof(ConstantBuffer);
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0u;
+        desc.StructureByteStride = 0u;
+        subData.pSysMem = &cb;
+        subData.SysMemPitch = 0u;
+        subData.SysMemSlicePitch = 0u;
+        
+        hr = d3d11Device->CreateBuffer(&desc, &subData, &d3d11ConstantBuffer);
+        CheckHR(hr);
+        d3d11DeviceContext->VSSetConstantBuffers(0u, 1u, d3d11ConstantBuffer.GetAddressOf());
+
+        // Set the render target and viewport
+        d3d11DeviceContext->OMSetRenderTargets(1, d3d11RenderTargetView.GetAddressOf(), nullptr);
 
         D3D11_VIEWPORT viewport;
         viewport.TopLeftX = 0;
@@ -184,7 +224,34 @@ void D3D11Render::Present()
 
 void D3D11Render::OnResize(unsigned flags, int width, int height)
 {
-    // TODO: Update size of resource such as the swap chain
+    HRESULT hr;
+
+    // Ignore the initial message before anything is setup
+    if (d3d11Device == nullptr) return;
+
+    if (d3d11RenderTargetView) {
+        // Has already been initialized. Resizing.
+        d3d11DeviceContext->OMSetRenderTargets(0u, nullptr, nullptr);
+        d3d11RenderTargetView = nullptr;
+        d3d11Resource = nullptr;
+
+        // Preserve existing flags, and use HWND to get width and height
+        hr = dxgiSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+        CheckHR(hr);
+
+        // TODO: Remove. Here for troubleshooting for now.
+        DXGI_SWAP_CHAIN_DESC swapChainDesc;
+        hr = dxgiSwapChain->GetDesc(&swapChainDesc);
+        CheckHR(hr);
+        this->width = swapChainDesc.BufferDesc.Width;
+        this->height = swapChainDesc.BufferDesc.Height;
+    }
+
+    hr = dxgiSwapChain->GetBuffer(0, IID_PPV_ARGS(&d3d11Resource));
+    CheckHR(hr);
+
+    hr = d3d11Device->CreateRenderTargetView(d3d11Resource.Get(), nullptr, &d3d11RenderTargetView);
+    CheckHR(hr);
 }
 
 // TODO: Convert to use ComPtr and RAII for safety, and maybe move to a "utilities" file
