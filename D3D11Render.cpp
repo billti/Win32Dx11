@@ -218,7 +218,7 @@ void D3D11Render::Present()
 
         hr = dxgiSwapChain->Present(1, 0);
         CheckHR(hr);
-        printf("Rendered a triangle\n");
+        // printf("Rendered a triangle\n");
     }
 }
 

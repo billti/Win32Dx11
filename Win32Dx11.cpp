@@ -5,6 +5,8 @@
 
 #define MAX_LOADSTRING 100
 
+const bool show_menu = false;
+
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
@@ -26,10 +28,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     // TODO: Make the diagnostics console optional
     FILE* stream;
-    AllocConsole();
+    if (!AttachConsole(ATTACH_PARENT_PROCESS)) AllocConsole();
+    freopen_s(&stream, "CON", "r", stdin);
     freopen_s(&stream, "CON", "w", stdout);
     freopen_s(&stream, "CON", "w", stderr);
-    freopen_s(&stream, "CON", "r", stdin);
     printf("Launching app\n");
 
     // Initialize global strings
@@ -79,7 +81,7 @@ ATOM RegisterClass(HINSTANCE hInstance)
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WIN32DX11));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = NULL; // We'll paint our own background
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_WIN32DX11);
+    wcex.lpszMenuName   = show_menu ? MAKEINTRESOURCEW(IDC_WIN32DX11) : nullptr;
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
@@ -94,7 +96,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    rect.top = 100;
    rect.right = rect.left + 1600;
    rect.bottom = rect.top + 900;
-   AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, TRUE);
+   AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, show_menu);
 
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
       200, 100, rect.right - rect.left, rect.bottom - rect.top, nullptr, nullptr, hInstance, nullptr);
